@@ -117,7 +117,7 @@ func handleConnection(conn net.Conn) {
 		}
 
 		word := strings.TrimPrefix(path, "echo/")
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", acceptEncodingHeader, len(word), word)
+		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%sContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", acceptEncodingHeader, len(word), word)
 
 		writer.WriteString(res)
 		writer.Flush()
