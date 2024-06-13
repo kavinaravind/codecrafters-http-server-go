@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -121,17 +122,21 @@ func handleConnection(conn net.Conn) {
 		}
 
 		word := strings.TrimPrefix(path, "echo/")
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%sContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", acceptEncodingHeader, len(word), word)
+		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%sContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n", acceptEncodingHeader, len(word))
+
+		var body []byte
+		if acceptEncodingHeader != "" {
+			var b bytes.Buffer
+			zw := gzip.NewWriter(&b)
+			zw.Write([]byte(word))
+			zw.Close()
+		} else {
+			body = []byte(word)
+		}
 
 		writer.WriteString(res)
+		writer.Write(body)
 		writer.Flush()
-
-		if acceptEncodingHeader != "" {
-			zw := gzip.NewWriter(writer)
-			zw.Write([]byte(word))
-			zw.Flush()
-			zw.Close()
-		}
 
 		return
 	}
