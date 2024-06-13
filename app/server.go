@@ -112,8 +112,10 @@ func handleConnection(conn net.Conn) {
 		}
 
 		acceptEncodingHeader := ""
-		if acceptEncoding == "gzip" {
-			acceptEncodingHeader = "Content-Encoding: gzip\r\n"
+		for _, encoding := range strings.Split(acceptEncoding, " ") {
+			if encoding == "gzip" {
+				acceptEncodingHeader = "Content-Encoding: gzip\r\n"
+			}
 		}
 
 		word := strings.TrimPrefix(path, "echo/")
