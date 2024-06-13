@@ -125,10 +125,10 @@ func handleConnection(conn net.Conn) {
 
 		var body bytes.Buffer
 		if acceptEncodingHeader != "" {
-			var b bytes.Buffer
-			zw := gzip.NewWriter(&b)
+			zw := gzip.NewWriter(&body)
 			zw.Write([]byte(word))
 			zw.Close()
+
 		} else {
 			body.Write([]byte(word))
 		}
