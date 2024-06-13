@@ -103,8 +103,21 @@ func handleConnection(conn net.Conn) {
 
 	// Handle requests for echo
 	if strings.HasPrefix(path, "echo/") {
+		acceptEncoding := ""
+		for _, line := range lines {
+			if strings.HasPrefix(line, "Accept-Encoding: ") {
+				acceptEncoding = strings.TrimPrefix(line, "Accept-Encoding: ")
+				break
+			}
+		}
+
+		acceptEncodingHeader := ""
+		if acceptEncoding == "gzip" {
+			acceptEncodingHeader = "Content-Encoding: gzip\r\n"
+		}
+
 		word := strings.TrimPrefix(path, "echo/")
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(word), word)
+		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", acceptEncodingHeader, len(word), word)
 
 		writer.WriteString(res)
 		writer.Flush()
