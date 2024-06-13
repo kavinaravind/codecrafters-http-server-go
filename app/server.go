@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"log"
@@ -124,6 +125,13 @@ func handleConnection(conn net.Conn) {
 
 		writer.WriteString(res)
 		writer.Flush()
+
+		if acceptEncodingHeader != "" {
+			zw := gzip.NewWriter(writer)
+			zw.Write([]byte(word))
+			zw.Flush()
+			zw.Close()
+		}
 
 		return
 	}
