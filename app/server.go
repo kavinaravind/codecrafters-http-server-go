@@ -13,6 +13,7 @@ import (
 
 const (
 	StatusOK                  = "HTTP/1.1 200 OK\r\n\r\n"
+	StatusCreated             = "HTTP/1.1 201 Created\r\n\r\n"
 	StatusNotFound            = "HTTP/1.1 404 Not Found\r\n\r\n"
 	StatusBadRequest          = "HTTP/1.1 400 Bad Request\r\n\r\n"
 	StatusInternalServerError = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
@@ -171,6 +172,7 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 			writer.Write(buffer[:n])
 			writer.Flush()
 		}
+
 	case "POST":
 		file, err := os.Create(filePath)
 		if err != nil {
@@ -226,7 +228,7 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 			}
 		}
 
-		writer.WriteString(StatusOK)
+		writer.WriteString(StatusCreated)
 		writer.Flush()
 	}
 }
