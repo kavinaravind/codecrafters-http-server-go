@@ -61,6 +61,11 @@ func handleConnection(l net.Listener) {
 		return
 	}
 
+	if strings.HasPrefix(path, "files/") {
+		handleFileRequest(conn, path)
+		return
+	}
+
 	if !strings.HasPrefix(path, "echo/") {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		return
@@ -70,4 +75,45 @@ func handleConnection(l net.Listener) {
 	res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(word), word)
 
 	conn.Write([]byte(res))
+}
+
+func handleFileRequest(conn net.Conn, path string) {
+	if len(os.Args) != 3 || os.Args[1] != "--directory" {
+		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		return
+	}
+	dir := os.Args[2]
+
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		return
+	}
+
+	filePath := strings.TrimPrefix(path, "files/")
+	filePath = fmt.Sprintf("%s%s", dir, filePath)
+	file, err := os.Open(filePath)
+	if err != nil {
+		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		return
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		return
+	}
+
+	res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n", fileInfo.Size())
+	conn.Write([]byte(res))
+
+	buffer := make([]byte, 4096)
+	for {
+		n, err := file.Read(buffer)
+		if err != nil {
+			break
+		}
+		conn.Write(buffer[:n])
+	}
 }
