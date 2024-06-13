@@ -19,21 +19,7 @@ const (
 	StatusInternalServerError = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
 )
 
-var directory string
-
 func main() {
-	if len(os.Args) != 3 || os.Args[1] != "--directory" {
-		fmt.Println("Flag --directory <directory> is required")
-		os.Exit(1)
-	}
-	directory = os.Args[2]
-
-	_, err := os.Stat(directory)
-	if os.IsNotExist(err) {
-		fmt.Println("Directory does not exist")
-		os.Exit(1)
-	}
-
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -138,6 +124,18 @@ func handleConnection(conn net.Conn) {
 }
 
 func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string, lines []string, path string) {
+	if len(os.Args) != 3 || os.Args[1] != "--directory" {
+		fmt.Println("Flag --directory <directory> is required")
+		os.Exit(1)
+	}
+	directory := os.Args[2]
+
+	_, err := os.Stat(directory)
+	if os.IsNotExist(err) {
+		fmt.Println("Directory does not exist")
+		os.Exit(1)
+	}
+
 	filePath := fmt.Sprintf("%s%s", directory, strings.TrimPrefix(path, "files/"))
 
 	switch method {
