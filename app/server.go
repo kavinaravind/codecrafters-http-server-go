@@ -113,6 +113,7 @@ func handleConnection(conn net.Conn) {
 
 		acceptEncodingHeader := ""
 		for _, encoding := range strings.Split(acceptEncoding, " ") {
+			encoding = strings.TrimSuffix(encoding, ",")
 			if encoding == "gzip" {
 				acceptEncodingHeader = "Content-Encoding: gzip\r\n"
 			}
