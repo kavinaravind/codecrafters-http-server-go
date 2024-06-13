@@ -122,20 +122,21 @@ func handleConnection(conn net.Conn) {
 		}
 
 		word := strings.TrimPrefix(path, "echo/")
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%sContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n", acceptEncodingHeader, len(word))
 
-		var body []byte
+		var body bytes.Buffer
 		if acceptEncodingHeader != "" {
 			var b bytes.Buffer
 			zw := gzip.NewWriter(&b)
 			zw.Write([]byte(word))
 			zw.Close()
 		} else {
-			body = []byte(word)
+			body.Write([]byte(word))
 		}
 
+		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%sContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n", acceptEncodingHeader, body.Len())
+
 		writer.WriteString(res)
-		writer.Write(body)
+		writer.Write(body.Bytes())
 		writer.Flush()
 
 		return
