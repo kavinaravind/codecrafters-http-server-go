@@ -41,6 +41,19 @@ func main() {
 		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 		return
 	}
+	if path == "user-agent" {
+		userAgent := ""
+		for _, line := range lines {
+			if strings.HasPrefix(line, "User-Agent: ") {
+				userAgent = strings.TrimPrefix(line, "User-Agent: ")
+				break
+			}
+		}
+		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\n%s", userAgent)
+		conn.Write([]byte(res))
+		return
+	}
+
 	if !strings.HasPrefix(path, "echo/") {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		return
