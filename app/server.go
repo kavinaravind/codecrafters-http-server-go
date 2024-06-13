@@ -37,9 +37,13 @@ func main() {
 	}
 
 	path := strings.Trim(request[1], "/")
-	if path == "" {
-		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
-	} else {
+	if !strings.HasPrefix(path, "echo/") {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		return
 	}
+
+	word := strings.TrimPrefix(path, "echo/")
+	res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(word), word)
+
+	conn.Write([]byte(res))
 }
