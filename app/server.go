@@ -49,7 +49,7 @@ func main() {
 				break
 			}
 		}
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\n%s", userAgent)
+		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)
 		conn.Write([]byte(res))
 		return
 	}
