@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"strconv"
@@ -32,25 +32,52 @@ func main() {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
+			fmt.Printf("Error accepting connection: %s\n", err.Error())
 			continue
 		}
 		go handleConnection(conn)
 	}
 }
 
+// handleConnection handles the incoming connection
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
+	lines, request, path, err := readRequest(reader)
+	if err != nil {
+		fmt.Printf("Error reading request: %s\n", err.Error())
+		writer.WriteString(StatusBadRequest)
+		writer.Flush()
+		return
+	}
+
+	switch {
+	case path == "":
+		writer.WriteString(StatusOK)
+	case path == "user-agent":
+		handleUserAgentRequest(writer, lines)
+	case strings.HasPrefix(path, "echo/"):
+		handleEchoRequest(writer, lines, path)
+	case strings.HasPrefix(path, "files/"):
+		handleFileRequest(reader, writer, request[0], lines, path)
+	default:
+		writer.WriteString(StatusNotFound)
+	}
+
+	writer.Flush()
+}
+
+// readRequest reads the HTTP request from the client
+func readRequest(reader *bufio.Reader) ([]string, []string, string, error) {
 	var lines []string
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err != io.EOF {
-				log.Fatalf("Error reading from connection: %s", err.Error())
+				return nil, nil, "", err
 			}
 			break
 		}
@@ -65,101 +92,77 @@ func handleConnection(conn net.Conn) {
 	}
 
 	if len(lines) == 0 {
-		writer.WriteString(StatusBadRequest)
-		writer.Flush()
-		return
+		return nil, nil, "", errors.New("empty request")
 	}
 
 	request := strings.Split(lines[0], " ")
 	if len(request) == 0 {
-		writer.WriteString(StatusBadRequest)
-		writer.Flush()
-		return
+		return nil, nil, "", errors.New("invalid request")
 	}
 
 	path := strings.Trim(request[1], "/")
 
-	// Handle requests for /
-	if path == "" {
-		writer.WriteString(StatusOK)
-		writer.Flush()
-		return
-	}
-
-	// Handle requests for user-agent
-	if path == "user-agent" {
-		userAgent := ""
-		for _, line := range lines {
-			if strings.HasPrefix(line, "User-Agent: ") {
-				userAgent = strings.TrimPrefix(line, "User-Agent: ")
-				break
-			}
-		}
-
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)
-		writer.WriteString(res)
-		writer.Flush()
-
-		return
-	}
-
-	// Handle requests for echo
-	if strings.HasPrefix(path, "echo/") {
-		acceptEncoding := ""
-		for _, line := range lines {
-			if strings.HasPrefix(line, "Accept-Encoding: ") {
-				acceptEncoding = strings.TrimPrefix(line, "Accept-Encoding: ")
-				break
-			}
-		}
-
-		acceptEncodingHeader := ""
-		for _, encoding := range strings.Split(acceptEncoding, " ") {
-			encoding = strings.TrimSuffix(encoding, ",")
-			if encoding == "gzip" {
-				acceptEncodingHeader = "Content-Encoding: gzip\r\n"
-			}
-		}
-
-		word := strings.TrimPrefix(path, "echo/")
-
-		var body bytes.Buffer
-		if acceptEncodingHeader != "" {
-			zw := gzip.NewWriter(&body)
-			zw.Write([]byte(word))
-			zw.Close()
-
-		} else {
-			body.Write([]byte(word))
-		}
-
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%sContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n", acceptEncodingHeader, body.Len())
-
-		writer.WriteString(res)
-		writer.Write(body.Bytes())
-		writer.Flush()
-
-		return
-	}
-
-	// Handle requests for files
-	if strings.HasPrefix(path, "files/") {
-		handleFileRequest(reader, writer, request[0], lines, path)
-		return
-	}
-
-	// Handle requests for unknown paths
-	writer.WriteString(StatusNotFound)
-	writer.Flush()
+	return lines, request, path, nil
 }
 
+// handleUserAgentRequest will handle requests for user-agent
+func handleUserAgentRequest(writer *bufio.Writer, lines []string) {
+	userAgent := ""
+	for _, line := range lines {
+		if strings.HasPrefix(line, "User-Agent: ") {
+			userAgent = strings.TrimPrefix(line, "User-Agent: ")
+			break
+		}
+	}
+
+	res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)
+	writer.WriteString(res)
+}
+
+// handleEchoRequest will handle requests for echo
+func handleEchoRequest(writer *bufio.Writer, lines []string, path string) {
+	acceptEncoding := ""
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Accept-Encoding: ") {
+			acceptEncoding = strings.TrimPrefix(line, "Accept-Encoding: ")
+			break
+		}
+	}
+
+	contentEncodingHeader := ""
+	for _, encoding := range strings.Split(acceptEncoding, " ") {
+		encoding = strings.TrimSuffix(encoding, ",")
+		if encoding == "gzip" {
+			contentEncodingHeader = "Content-Encoding: gzip\r\n"
+		}
+	}
+
+	word := strings.TrimPrefix(path, "echo/")
+
+	var body bytes.Buffer
+	if contentEncodingHeader != "" {
+		zw := gzip.NewWriter(&body)
+		zw.Write([]byte(word))
+		zw.Close()
+
+	} else {
+		body.Write([]byte(word))
+	}
+
+	res := fmt.Sprintf("HTTP/1.1 200 OK\r\n%sContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n", contentEncodingHeader, body.Len())
+
+	writer.WriteString(res)
+	writer.Write(body.Bytes())
+}
+
+// handleFileRequest will handle requests for files
 func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string, lines []string, path string) {
 	if len(os.Args) != 3 || os.Args[1] != "--directory" {
 		fmt.Println("Flag --directory <directory> is required")
 		os.Exit(1)
 	}
-	directory := os.Args[2]
 
+	directory := os.Args[2]
 	_, err := os.Stat(directory)
 	if os.IsNotExist(err) {
 		fmt.Println("Directory does not exist")
@@ -173,7 +176,6 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 		file, err := os.Open(filePath)
 		if err != nil {
 			writer.WriteString(StatusNotFound)
-			writer.Flush()
 			return
 		}
 		defer file.Close()
@@ -181,14 +183,11 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 		fileInfo, err := file.Stat()
 		if err != nil {
 			writer.WriteString(StatusInternalServerError)
-			writer.Flush()
 			return
 		}
 
 		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n", fileInfo.Size())
-
 		writer.WriteString(res)
-		writer.Flush()
 
 		buffer := make([]byte, 4096)
 		for {
@@ -196,16 +195,12 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 			if err != nil {
 				break
 			}
-
 			writer.Write(buffer[:n])
-			writer.Flush()
 		}
-
 	case "POST":
 		file, err := os.Create(filePath)
 		if err != nil {
 			writer.WriteString(StatusInternalServerError)
-			writer.Flush()
 			return
 		}
 		defer file.Close()
@@ -221,14 +216,12 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 
 		if contentLengthHeader == "" {
 			writer.WriteString(StatusBadRequest)
-			writer.Flush()
 			return
 		}
 
 		contentLength, err := strconv.Atoi(contentLengthHeader)
 		if err != nil {
 			writer.WriteString(StatusBadRequest)
-			writer.Flush()
 			return
 		}
 
@@ -239,7 +232,6 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 				n, err := reader.Read(buffer)
 				if err != nil && err != io.EOF {
 					writer.WriteString(StatusInternalServerError)
-					writer.Flush()
 					return
 				}
 				if n == 0 {
@@ -248,7 +240,6 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 
 				if _, err := file.Write(buffer[:n]); err != nil {
 					writer.WriteString(StatusInternalServerError)
-					writer.Flush()
 					return
 				}
 
@@ -257,6 +248,5 @@ func handleFileRequest(reader *bufio.Reader, writer *bufio.Writer, method string
 		}
 
 		writer.WriteString(StatusCreated)
-		writer.Flush()
 	}
 }
